@@ -184,6 +184,29 @@ export const ExamSchedule: React.FC<ExamScheduleProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  // حساب نسبة التقدم للشريط البصري
+  const getProgressPercentage = (eventId: number) => {
+    const timeString = timeLeft[eventId];
+    if (!timeString || timeString.includes("مضى")) {
+      return 0;
+    }
+
+    if (timeString.includes("ثانية") && !timeString.includes("دقيقة")) {
+      const seconds = parseInt(timeString);
+      return Math.max(5, Math.min(100, (seconds / 60) * 100));
+    } else if (timeString.includes("دقيقة") && !timeString.includes("ساعة")) {
+      const minutes = parseInt(timeString);
+      return Math.max(10, Math.min(100, (minutes / 60) * 100));
+    } else if (timeString.includes("ساعة") && !timeString.includes("يوم")) {
+      const hours = parseInt(timeString);
+      return Math.max(25, Math.min(100, (hours / 24) * 100));
+    } else if (timeString.includes("يوم")) {
+      const days = parseInt(timeString);
+      return Math.max(50, Math.min(100, (days / 30) * 100));
+    }
+    
+    return 100;
+  };
   const formatDate = (date: Date, eventIndex: number) => {
     const dates = getCorrespondingDates(date, eventIndex);
     return dates;
@@ -397,62 +420,18 @@ export const ExamSchedule: React.FC<ExamScheduleProps> = ({
                                 isDarkMode ? "bg-gray-600" : "bg-gray-200"
                               }`}
                             >
-                              {(() => {
-                                const timeString = timeLeft[event.id];
-                                let progressWidth = "100%";
-                                let progressColor =
-                                  "bg-gradient-to-r from-green-500 to-blue-500";
-
-                                if (
-                                  timeString.includes("ثانية") &&
-                                  !timeString.includes("دقيقة")
-                                ) {
-                                  const seconds = parseInt(timeString);
-                                  progressWidth = `${Math.max(
-                                    5,
-                                    (seconds / 60) * 100
-                                  )}%`;
-                                  progressColor =
-                                    "bg-gradient-to-r from-red-500 to-red-600 animate-pulse";
-                                } else if (
-                                  timeString.includes("دقيقة") &&
-                                  !timeString.includes("ساعة")
-                                ) {
-                                  const minutes = parseInt(timeString);
-                                  progressWidth = `${Math.max(
-                                    10,
-                                    (minutes / 60) * 100
-                                  )}%`;
-                                  progressColor =
-                                    "bg-gradient-to-r from-orange-500 to-red-500";
-                                } else if (
-                                  timeString.includes("ساعة") &&
-                                  !timeString.includes("يوم")
-                                ) {
-                                  const hours = parseInt(timeString);
-                                  progressWidth = `${Math.max(
-                                    25,
-                                    (hours / 24) * 100
-                                  )}%`;
-                                  progressColor =
-                                    "bg-gradient-to-r from-yellow-500 to-orange-500";
-                                } else if (timeString.includes("يوم")) {
-                                  const days = parseInt(timeString);
-                                  progressWidth = `${Math.min(
-                                    100,
-                                    Math.max(50, (days / 30) * 100)
-                                  )}%`;
-                                  progressColor =
-                                    "bg-gradient-to-r from-green-500 to-blue-500";
-                                }
-
-                                return (
-                                  <div
-                                    className={`h-full transition-all duration-1000 ${progressColor}`}
-                                    style={{ width: progressWidth }}
-                                  />
-                                );
-                              })()}
+                              <div
+                                className={`h-full transition-all duration-1000 ${
+                                  timeLeft[event.id].includes("ثانية") && !timeLeft[event.id].includes("دقيقة")
+                                    ? "bg-gradient-to-r from-red-500 to-red-600 animate-pulse"
+                                    : timeLeft[event.id].includes("دقيقة") && !timeLeft[event.id].includes("ساعة")
+                                    ? "bg-gradient-to-r from-orange-500 to-red-500"
+                                    : timeLeft[event.id].includes("ساعة") && !timeLeft[event.id].includes("يوم")
+                                    ? "bg-gradient-to-r from-yellow-500 to-orange-500"
+                                    : "bg-gradient-to-r from-green-500 to-blue-500"
+                                }`}
+                                style={{ width: `${getProgressPercentage(event.id)}%` }}
+                              />
                             </div>
                           </div>
                         )}

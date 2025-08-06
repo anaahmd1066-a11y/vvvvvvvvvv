@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, User, CheckCircle, XCircle, Calendar, Phone, UserCheck, Clock, AlertTriangle, GraduationCap, MapPin, Bell } from 'lucide-react';
 import { Reciter } from '../types';
 import { supabase } from '../utils/supabase';
@@ -66,6 +66,8 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
   const [isLoading, setIsLoading] = useState(false);
   const [reciters, setReciters] = useState<Reciter[]>([]);
   const [totalReciters, setTotalReciters] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [examInfo, setExamInfo] = useState<any>(null);
 
   useEffect(() => {
     fetchReciters();
@@ -90,36 +92,6 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      setSearchResult(null);
-      setSearchAttempted(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setSearchAttempted(true);
-
-    try {
-      const reciter = reciters.find(r => 
-        r.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
-      );
-
-      setSearchResult(reciter || null);
-    } catch (error) {
-      console.error('Search error:', error);
-      setSearchResult(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('ar-EG', {
@@ -132,6 +104,114 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
 
   const getExamInfo = (category: string) => {
     return examSchedule[category as keyof typeof examSchedule] || null;
+  };
+
+  // حساب الوقت المتبقي للاختبار
+  const calculateTimeLeft = useCallback((examDate: string, examTime: string) => {
+    // تحويل التاريخ والوقت إلى كائن Date
+    let targetDate: Date;
+    
+    if (examDate.includes('٨ أغسطس ٢٠٢٥')) {
+      targetDate = new Date('2025-08-08T13:30:00');
+    } else if (examDate.includes('٩ أغسطس ٢٠٢٥')) {
+      targetDate = new Date('2025-08-09T12:00:00');
+    } else if (examDate.includes('١٥ أغسطس ٢٠٢٥')) {
+      targetDate = new Date('2025-08-15T13:30:00');
+    } else if (examDate.includes('١٦ أغسطس ٢٠٢٥')) {
+      targetDate = new Date('2025-08-16T12:00:00');
+    } else {
+      return 'غير محدد';
+    }
+
+    const now = new Date().getTime();
+    const examTime = targetDate.getTime();
+    const difference = examTime - now;
+
+    if (difference > 0) {
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        return `${days} يوم، ${hours} ساعة، ${minutes} دقيقة`;
+      } else if (hours > 0) {
+        return `${hours} ساعة، ${minutes} دقيقة، ${seconds} ثانية`;
+      } else if (minutes > 0) {
+        return `${minutes} دقيقة، ${seconds} ثانية`;
+      } else {
+        return `${seconds} ثانية`;
+      }
+    } else {
+      const daysSince = Math.floor(Math.abs(difference) / (1000 * 60 * 60 * 24));
+      const hoursSince = Math.floor((Math.abs(difference) % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutesSince = Math.floor((Math.abs(difference) % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (daysSince > 0) {
+        return `انتهى منذ ${daysSince} يوم، ${hoursSince} ساعة`;
+      } else if (hoursSince > 0) {
+        return `انتهى منذ ${hoursSince} ساعة، ${minutesSince} دقيقة`;
+      } else {
+        return `انتهى منذ ${minutesSince} دقيقة`;
+      }
+    }
+  }, []);
+
+  // تحديث العد التنازلي كل ثانية
+  useEffect(() => {
+    if (searchResult && examInfo) {
+      const updateTimer = () => {
+        const newTimeLeft = calculateTimeLeft(examInfo.date, examInfo.time);
+        setTimeLeft(newTimeLeft);
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [searchResult, examInfo, calculateTimeLeft]);
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      setSearchResult(null);
+      setSearchAttempted(false);
+      setExamInfo(null);
+      setTimeLeft('');
+      return;
+    }
+
+    setIsLoading(true);
+    setSearchAttempted(true);
+
+    try {
+      const reciter = reciters.find(r => 
+        r.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
+      );
+
+      setSearchResult(reciter || null);
+      
+      if (reciter) {
+        const info = getExamInfo(reciter.category);
+        setExamInfo(info);
+      } else {
+        setExamInfo(null);
+        setTimeLeft('');
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResult(null);
+      setExamInfo(null);
+      setTimeLeft('');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   };
 
   return (
@@ -289,17 +369,117 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
                       </div>
                       
                       {/* Exam Schedule Info */}
-                      {getExamInfo(searchResult.category) && (
+                      {examInfo && (
                         <div className={`border-2 rounded-3xl p-8 mb-6 transition-colors duration-300 ${
                           isDarkMode 
                             ? 'bg-gradient-to-br from-blue-900/30 via-purple-900/30 to-blue-900/30 border-blue-600/70' 
                             : 'bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 border-blue-300'
                         }`}>
+                          {/* العد التنازلي في المقدمة */}
+                          <div className={`text-center mb-8 p-6 rounded-2xl border-2 ${
+                            timeLeft.includes('انتهى') 
+                              ? isDarkMode 
+                                ? 'bg-gradient-to-r from-red-900/30 to-orange-900/30 border-red-600/50' 
+                                : 'bg-gradient-to-r from-red-100 to-orange-100 border-red-300'
+                              : timeLeft.includes('ثانية') && !timeLeft.includes('دقيقة')
+                              ? isDarkMode 
+                                ? 'bg-gradient-to-r from-red-900/50 to-red-800/50 border-red-500/70' 
+                                : 'bg-gradient-to-r from-red-200 to-red-300 border-red-400'
+                              : timeLeft.includes('دقيقة') && !timeLeft.includes('ساعة')
+                              ? isDarkMode 
+                                ? 'bg-gradient-to-r from-orange-900/40 to-red-900/40 border-orange-500/60' 
+                                : 'bg-gradient-to-r from-orange-200 to-red-200 border-orange-400'
+                              : timeLeft.includes('ساعة') && !timeLeft.includes('يوم')
+                              ? isDarkMode 
+                                ? 'bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-500/50' 
+                                : 'bg-gradient-to-r from-yellow-200 to-orange-200 border-yellow-400'
+                              : isDarkMode 
+                                ? 'bg-gradient-to-r from-green-900/30 to-blue-900/30 border-green-500/50' 
+                                : 'bg-gradient-to-r from-green-200 to-blue-200 border-green-400'
+                          }`}>
+                            <div className="flex justify-center items-center gap-3 mb-4">
+                              <Clock className={`w-8 h-8 animate-tick ${
+                                timeLeft.includes('انتهى') 
+                                  ? 'text-red-500' 
+                                  : timeLeft.includes('ثانية') && !timeLeft.includes('دقيقة')
+                                  ? 'text-red-600 animate-pulse' 
+                                  : timeLeft.includes('دقيقة') && !timeLeft.includes('ساعة')
+                                  ? 'text-orange-600 animate-pulse' 
+                                  : timeLeft.includes('ساعة') && !timeLeft.includes('يوم')
+                                  ? 'text-yellow-600' 
+                                  : 'text-green-600'
+                              }`} />
+                              <h4 className={`text-2xl font-bold ${
+                                timeLeft.includes('انتهى') 
+                                  ? isDarkMode ? 'text-red-300' : 'text-red-700'
+                                  : timeLeft.includes('ثانية') && !timeLeft.includes('دقيقة')
+                                  ? isDarkMode ? 'text-red-200' : 'text-red-800'
+                                  : timeLeft.includes('دقيقة') && !timeLeft.includes('ساعة')
+                                  ? isDarkMode ? 'text-orange-200' : 'text-orange-800'
+                                  : timeLeft.includes('ساعة') && !timeLeft.includes('يوم')
+                                  ? isDarkMode ? 'text-yellow-200' : 'text-yellow-800'
+                                  : isDarkMode ? 'text-green-200' : 'text-green-800'
+                              }`}>
+                                {timeLeft.includes('انتهى') ? 'انتهى الاختبار' : 'الوقت المتبقي للاختبار'}
+                              </h4>
+                            </div>
+                            <div className={`text-3xl md:text-4xl font-bold mb-4 ${
+                              timeLeft.includes('انتهى') 
+                                ? isDarkMode ? 'text-red-400' : 'text-red-600'
+                                : timeLeft.includes('ثانية') && !timeLeft.includes('دقيقة')
+                                ? isDarkMode ? 'text-red-300 animate-pulse' : 'text-red-700 animate-pulse'
+                                : timeLeft.includes('دقيقة') && !timeLeft.includes('ساعة')
+                                ? isDarkMode ? 'text-orange-300 animate-pulse' : 'text-orange-700 animate-pulse'
+                                : timeLeft.includes('ساعة') && !timeLeft.includes('يوم')
+                                ? isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                                : isDarkMode ? 'text-green-300' : 'text-green-700'
+                            }`}>
+                              {timeLeft}
+                            </div>
+                            
+                            {/* شريط التقدم البصري */}
+                            {!timeLeft.includes('انتهى') && (
+                              <div className={`w-full h-3 rounded-full overflow-hidden mb-4 ${
+                                isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                              }`}>
+                                {(() => {
+                                  let progressWidth = "100%";
+                                  let progressColor = "bg-gradient-to-r from-green-500 to-blue-500";
+
+                                  if (timeLeft.includes('ثانية') && !timeLeft.includes('دقيقة')) {
+                                    const seconds = parseInt(timeLeft);
+                                    progressWidth = `${Math.max(5, (seconds / 60) * 100)}%`;
+                                    progressColor = "bg-gradient-to-r from-red-500 to-red-600 animate-pulse";
+                                  } else if (timeLeft.includes('دقيقة') && !timeLeft.includes('ساعة')) {
+                                    const minutes = parseInt(timeLeft);
+                                    progressWidth = `${Math.max(10, (minutes / 60) * 100)}%`;
+                                    progressColor = "bg-gradient-to-r from-orange-500 to-red-500";
+                                  } else if (timeLeft.includes('ساعة') && !timeLeft.includes('يوم')) {
+                                    const hours = parseInt(timeLeft);
+                                    progressWidth = `${Math.max(25, (hours / 24) * 100)}%`;
+                                    progressColor = "bg-gradient-to-r from-yellow-500 to-orange-500";
+                                  } else if (timeLeft.includes('يوم')) {
+                                    const days = parseInt(timeLeft);
+                                    progressWidth = `${Math.min(100, Math.max(50, (days / 30) * 100))}%`;
+                                    progressColor = "bg-gradient-to-r from-green-500 to-blue-500";
+                                  }
+
+                                  return (
+                                    <div
+                                      className={`h-full transition-all duration-1000 ${progressColor}`}
+                                      style={{ width: progressWidth }}
+                                    />
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                          
                           <div className="text-center mb-6">
                             <div className="flex justify-center items-center gap-3 mb-4">
                               <Bell className={`w-8 h-8 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'} animate-ring`} />
                               <h4 className={`text-2xl font-bold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                                موعد اختبارك
+                                تفاصيل الاختبار
                               </h4>
                             </div>
                           </div>
@@ -315,10 +495,10 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
                                 <h5 className={`text-lg font-bold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>التاريخ</h5>
                               </div>
                               <p className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                                {getExamInfo(searchResult.category)?.date}
+                                {examInfo.date}
                               </p>
                               <p className={`text-sm ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                                {getExamInfo(searchResult.category)?.hijriDate}
+                                {examInfo.hijriDate}
                               </p>
                             </div>
                             
@@ -332,7 +512,7 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
                                 <h5 className={`text-lg font-bold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>الوقت</h5>
                               </div>
                               <p className={`text-lg font-semibold ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                                {getExamInfo(searchResult.category)?.time}
+                                {examInfo.time}
                               </p>
                             </div>
                             
@@ -351,7 +531,7 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ isDarkMode =
                                 rel="noopener noreferrer"
                                 className={`text-lg font-semibold hover:underline transition-colors ${isDarkMode ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-600'}`}
                               >
-                                {getExamInfo(searchResult.category)?.location}
+                                {examInfo.location}
                               </a>
                             </div>
                           </div>
