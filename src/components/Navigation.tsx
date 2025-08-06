@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Home, Trophy, Calendar, BookOpen, Megaphone, Heart, UserCheck } from 'lucide-react';
 
 interface NavigationProps {
@@ -10,6 +10,8 @@ interface NavigationProps {
 export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate, isDarkMode = false }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,6 +36,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'main',
       label: 'الصفحة الرئيسية',
+      description: 'العودة للصفحة الرئيسية',
       icon: Home,
       gradient: 'from-green-500 to-emerald-600',
       hoverGradient: 'hover:from-green-600 hover:to-emerald-700'
@@ -41,6 +44,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'registration',
       label: 'البحث عن التسجيل',
+      description: 'ابحث عن اسمك وتأكد من التسجيل',
       icon: UserCheck,
       gradient: 'from-emerald-500 to-green-600',
       hoverGradient: 'hover:from-emerald-600 hover:to-green-700'
@@ -48,6 +52,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'schedule',
       label: 'جدول الاختبارات',
+      description: 'مواعيد وتفاصيل جميع الاختبارات',
       icon: Calendar,
       gradient: 'from-blue-500 to-purple-600',
       hoverGradient: 'hover:from-blue-600 hover:to-purple-700'
@@ -55,6 +60,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'results',
       label: 'النتائج',
+      description: 'نتائج المسابقة والترتيب',
       icon: Trophy,
       gradient: 'from-purple-500 to-pink-600',
       hoverGradient: 'hover:from-purple-600 hover:to-pink-700'
@@ -62,6 +68,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'news',
       label: 'آخر الأخبار',
+      description: 'تابع آخر أخبار المسابقة',
       icon: Megaphone,
       gradient: 'from-orange-500 to-red-600',
       hoverGradient: 'hover:from-orange-600 hover:to-red-700'
@@ -69,14 +76,36 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
     {
       id: 'donation',
       label: 'التبرعات',
+      description: 'ساهم في دعم المسابقة',
       icon: Heart,
       gradient: 'from-red-500 to-pink-600',
       hoverGradient: 'hover:from-red-600 hover:to-pink-700'
     }
   ];
 
+  const handleMouseEnter = (itemId: string) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setHoveredItem(itemId);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setHoveredItem(null);
+    }, 200);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <nav className={`backdrop-blur-md shadow-xl border-b sticky top-0 z-40 transition-all duration-300 ${
+    <nav className={`backdrop-blur-md shadow-xl border-b sticky top-0 z-40 transition-all duration-300 relative ${
       isVisible ? 'translate-y-0' : '-translate-y-full'
     } ${
       isDarkMode 
@@ -114,39 +143,59 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onNavigate,
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
+            const isHovered = hoveredItem === item.id;
             
             return (
-              <button
+              <div
                 key={item.id}
-                onClick={() => onNavigate(item.id as 'main' | 'results' | 'schedule' | 'news' | 'donation')}
-                onClick={() => onNavigate(item.id as 'main' | 'registration' | 'results' | 'schedule' | 'news' | 'donation')}
-                className={`
-                  group relative px-6 py-3 rounded-xl font-semibold text-sm md:text-base
-                  transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
-                  ${isActive 
-                    ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg` 
-                    : isDarkMode
-                    ? `bg-gray-800 text-gray-300 hover:bg-gray-700 ${item.hoverGradient} hover:text-white`
-                    : `bg-gray-100 text-gray-700 hover:bg-gray-200 ${item.hoverGradient} hover:text-white`
-                  }
-                `}
+                className="relative"
+                onMouseEnter={() => handleMouseEnter(item.id)}
+                onMouseLeave={handleMouseLeave}
               >
-                <div className="flex items-center gap-2">
-                  <Icon className={`w-5 h-5 ${isActive ? 'animate-bounce-slow' : 'group-hover:animate-bounce'}`} />
-                  <span>{item.label}</span>
-                </div>
+                <button
+                  onClick={() => onNavigate(item.id as 'main' | 'registration' | 'results' | 'schedule' | 'news' | 'donation')}
+                  className={`
+                    group relative px-6 py-3 rounded-xl font-semibold text-sm md:text-base
+                    transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
+                    ${isActive 
+                      ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg` 
+                      : isDarkMode
+                      ? `bg-gray-800 text-gray-300 hover:bg-gray-700 ${item.hoverGradient} hover:text-white`
+                      : `bg-gray-100 text-gray-700 hover:bg-gray-200 ${item.hoverGradient} hover:text-white`
+                    }
+                  `}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className={`w-5 h-5 ${isActive ? 'animate-bounce-slow' : 'group-hover:animate-bounce'}`} />
+                    <span>{item.label}</span>
+                  </div>
+                  
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-white rounded-full animate-pulse"></div>
+                  )}
+                  
+                  {/* Hover glow effect */}
+                  <div className={`
+                    absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300
+                    bg-gradient-to-r ${item.gradient} blur-xl -z-10
+                  `}></div>
+                </button>
                 
-                {/* Active indicator */}
-                {isActive && (
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-white rounded-full animate-pulse"></div>
+                {/* Tooltip */}
+                {isHovered && (
+                  <div className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap z-50 animate-fadeIn ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-gray-200 border border-gray-600' 
+                      : 'bg-white text-gray-700 border border-gray-200 shadow-lg'
+                  }`}>
+                    {item.description}
+                    <div className={`absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 rotate-45 ${
+                      isDarkMode ? 'bg-gray-700 border-l border-t border-gray-600' : 'bg-white border-l border-t border-gray-200'
+                    }`}></div>
+                  </div>
                 )}
-                
-                {/* Hover glow effect */}
-                <div className={`
-                  absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300
-                  bg-gradient-to-r ${item.gradient} blur-xl -z-10
-                `}></div>
-              </button>
+              </div>
             );
           })}
         </div>
